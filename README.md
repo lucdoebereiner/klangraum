@@ -1,6 +1,14 @@
 # klangraum
 sum incoming websocket audio streams and send to jack
 
+## run
+
+``` bash
+$ cargo run --release
+```
+
+Open client.html.
+
 ## TODO
 * Websocket close
 * next_buffers max size
