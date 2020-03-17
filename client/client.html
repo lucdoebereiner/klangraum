@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+    <head>
+	<title>Klangraum</title>
+	<meta charset="utf-8" />
+    </head>
+    <body>
+	<h1>Klangraum</h1>
+    </body>
+
+    <script>
+
+     let socket = new WebSocket("ws://localhost:3012");
+
+     function sendBlob(b) {
+	 /* b.data.arrayBuffer().then(d =>
+	    socket.send(d)
+	    );
+	  */
+	 console.log(b.data);
+	 socket.send(b.data);
+	 /* let buffer = new ArrayBuffer(4*4);
+	    let float32view = new Float32Array(buffer);
+	    float32view[0] = 1;
+	    float32view[1] = 2;
+	    float32view[2] = 3;
+	    float32view[3] = 4;
+	    socket.send(buffer);  */
+     }
+
+     //     console.log(MediaRecorder.isTypeSupported('audio/webm;codecs=pcm'));
+     
+     navigator.mediaDevices.getUserMedia({
+	 audio: {
+	     sampleRate: 48000,
+	     channelCount: 1,
+	     echoCancellation: false,
+	     noiseSuppression: false,
+	     autoGainControl: false
+	 },
+	 video : false
+     })
+	      .then(function(stream) {
+
+
+		  const context = new AudioContext();
+		  const source = context.createMediaStreamSource(stream);
+		  const processor = context.createScriptProcessor(1024*2, 1, 1);
+
+		  source.connect(processor);
+		  processor.connect(context.destination);
+
+		  processor.onaudioprocess = function(e) {
+		      // Do something with the data, e.g. convert it to WAV
+		      socket.send(e.inputBuffer.getChannelData(0).buffer);
+		  };
+		  
+		  /* let mediaRecorder = new MediaRecorder(stream, {
+		     mimeType: "audio/webm;codecs=pcm"
+		     });
+		     mediaRecorder.ondataavailable = sendBlob;
+		     mediaRecorder.start(1000); */
+
+	      })
+	      .catch(function(err) {
+
+	      });
+     
+
+     
+     
+     
+     /* socket.onopen = function(e) {
+	alert("[open] Connection established");
+	alert("Sending to server");
+	socket.send("My name is John");
+      * };
+
+      * socket.onmessage = function(event) {
+	alert(`[message] Data received from server: ${event.data}`);
+      * };
+
+      * socket.onclose = function(event) {
+	if (event.wasClean) {
+	alert(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+	} else {
+	// e.g. server process killed or network down
+	// event.code is usually 1006 in this case
+	alert('[close] Connection died');
+	}
+      * };
+
+      * socket.onerror = function(error) {
+	alert(`[error] ${error.message}`);
+      * }; */
+    </script>
+    
+</html>
