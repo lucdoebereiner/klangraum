@@ -1,5 +1,3 @@
-// A WebSocket echo server
-
 extern crate ws;
 extern crate opus;
 extern crate jack;
