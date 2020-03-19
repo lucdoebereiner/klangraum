@@ -10,47 +10,37 @@
 
     <script>
 
-     let socket = new WebSocket("wss://78.47.12.184:8800");
+     let socket = new WebSocket("wss://static.184.12.47.78.clients.your-server.de:8800");
 
+     setTimeout(function() {
      
-     navigator.mediaDevices.getUserMedia({
-	 audio: {
-	     sampleRate: 44100,
-	     channelCount: 1,
-	     echoCancellation: false,
-	     noiseSuppression: false,
-	     autoGainControl: false
-	 },
-	 video : false
-     })
-	      .then(function(stream) {
+	 navigator.mediaDevices.getUserMedia({
+	     audio: {
+		 sampleRate: 44100,
+		 channelCount: 1,
+		 echoCancellation: false,
+		 noiseSuppression: false,
+		 autoGainControl: false
+	     },
+	     video : false
+	 })
+		  .then(function(stream) {
 
-
-		  const context = new AudioContext({ sampleRate: 44100 });
-		  const source = context.createMediaStreamSource(stream);
-		  const processor = context.createScriptProcessor(16384, 1, 1);
-
-		  
-		  source.connect(processor);
-		  processor.connect(context.destination);
-
-		  processor.onaudioprocess = function(e) {
-		      socket.send(e.inputBuffer.getChannelData(0).buffer);
-		  };
-		  
-		  
-		  
-		  
-		  /* let mediaRecorder = new MediaRecorder(stream, {
-		     mimeType: "audio/webm;codecs=pcm"
-		     });
-		     mediaRecorder.ondataavailable = sendBlob;
-		     mediaRecorder.start(1000); */
+		      const context = new AudioContext({ sampleRate: 44100 });
+		      const source = context.createMediaStreamSource(stream);
+		      const processor = context.createScriptProcessor(16384, 1, 1);
+		 
+		      source.connect(processor);
+		      processor.connect(context.destination);
+		      processor.onaudioprocess = function(e) {
+			  socket.send(e.inputBuffer.getChannelData(0).buffer);
+		      };		  
 
 	      })
 	      .catch(function(err) {
 
 	      });
+     }, 1000);
      
 
      
