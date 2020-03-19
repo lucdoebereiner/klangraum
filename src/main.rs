@@ -1,5 +1,4 @@
 extern crate ws;
-extern crate opus;
 extern crate jack;
 extern crate crossbeam_channel;
 
