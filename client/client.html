@@ -10,12 +10,12 @@
 
     <script>
 
-     let socket = new WebSocket("ws://localhost:8800");
+     let socket = new WebSocket("ws://78.47.12.184:8800");
 
      
      navigator.mediaDevices.getUserMedia({
 	 audio: {
-	     sampleRate: 48000,
+	     sampleRate: 44100,
 	     channelCount: 1,
 	     echoCancellation: false,
 	     noiseSuppression: false,
@@ -26,7 +26,7 @@
 	      .then(function(stream) {
 
 
-		  const context = new AudioContext({ sampleRate: 48000 });
+		  const context = new AudioContext({ sampleRate: 44100 });
 		  const source = context.createMediaStreamSource(stream);
 		  const processor = context.createScriptProcessor(16384, 1, 1);
 

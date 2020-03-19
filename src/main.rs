@@ -3,7 +3,7 @@ extern crate opus;
 extern crate jack;
 extern crate crossbeam_channel;
 
-use ws::listen;
+use ws::{listen, Handler, Message, Result, CloseCode};
 use std::env;
 use crossbeam_channel::{Sender, Receiver};
 use crossbeam_channel::bounded;
@@ -17,9 +17,53 @@ struct ClientBuffer {
     connection_id: u32
 }
 
-struct ClientUpdate {
-    connection_id: u32,
-    buffer: [f32; 16384]
+enum ClientUpdate {
+    NewBuffer { connection_id: u32, buffer: [f32; 16384] },
+    Closed { connection_id: u32 }
+}
+
+// Server WebSocket handler
+struct Server {
+    out: ws::Sender,
+    tx: Sender<ClientUpdate>
+}
+
+impl Handler for Server {
+
+    fn on_message(&mut self, msg: Message) -> Result<()> {
+
+	let connection_id = self.out.connection_id();
+	     
+	match msg {
+	    ws::Message::Binary(vec) => {
+		
+		let buffer_slice = unsafe {
+		    std::slice::from_raw_parts_mut(vec.as_ptr() as *mut f32, vec.len() / 4)
+		};
+		
+		let mut buffer: [f32; 16384] = [0.0; 16384];
+		buffer.copy_from_slice(&buffer_slice[0..16384]);
+		
+		self.tx.send(ClientUpdate::NewBuffer { connection_id: connection_id,
+						       buffer: buffer }).unwrap();
+		
+		Ok(())
+		    
+	    }
+	    _ => Ok(())	
+	}	
+    }
+
+
+    fn on_close(&mut self, _code: CloseCode, _reason: &str) {
+
+	let connection_id = self.out.connection_id();
+
+	println!("Client {} closed the connection", connection_id);
+	
+	self.tx.send(ClientUpdate::Closed { connection_id: connection_id }).unwrap();
+    }
+
 }
 
 
@@ -51,20 +95,42 @@ fn main() {
 
 		// check for new input
 		while let Ok(update) = rx.try_recv() {
-		    let idx = client_buffers.iter()
-			.position(|b| b.connection_id == update.connection_id);
-		    match idx {
-			Some(i) => client_buffers[i].next_buffers.push(update.buffer),
-			None => client_buffers.push(
-			    ClientBuffer {
-				current_buffer: update.buffer,
-				next_buffers: Vec::with_capacity(10),
-				idx: 0,
-				init_wait: true,
-				connection_id: update.connection_id,
-			    } )
+		    match update {
+			ClientUpdate::NewBuffer { connection_id, buffer } => {		    
+			    let idx = client_buffers.iter()
+				.position(|b| b.connection_id == connection_id);
+			    match idx {
+				Some(i) => 
+				    client_buffers[i].next_buffers.push(buffer),
+				None => {
+				    client_buffers.push(
+					ClientBuffer {
+					    current_buffer: buffer,
+					    next_buffers: Vec::with_capacity(10),
+					    idx: 0,
+					    init_wait: true,
+					    connection_id: connection_id,
+					});
+				    println!("new client: {}, total number: {}",
+					     connection_id, client_buffers.len());
+
+				}
+			    }
+			}
+			ClientUpdate::Closed { connection_id } => {
+			    let idx = client_buffers.iter()
+				.position(|b| b.connection_id == connection_id);
+			    match idx {
+				Some(i) => {
+				    client_buffers.remove(i);
+				    ()
+				},
+				None => ()
+			    }
+			}
 		    }
 		}
+			
 
 		// sum and output
 		let sum = client_buffers.iter()
@@ -110,34 +176,7 @@ fn main() {
     let _active_client = client.activate_async((), process).unwrap();
 
     
-    listen(args[1].clone(), |out| {
-	let tx1 = tx.clone();
-	 move |msg| {
-            //out.send(msg)
-	     let connection_id = out.connection_id();
-	     
-	    match msg {
-		ws::Message::Binary(vec) => {
-		    
-		    let buffer_slice = unsafe {
-			std::slice::from_raw_parts_mut(vec.as_ptr() as *mut f32, vec.len() / 4)
-		    };
-
-		    let mut buffer: [f32; 16384] = [0.0; 16384];
-		    buffer.copy_from_slice(&buffer_slice[0..16384]);
-		    
-		    tx1.send(ClientUpdate { connection_id: connection_id,
-					   buffer: buffer }).unwrap();
-		    
-		    Ok(())
-			
-		}
-		_ => Ok(())
-		    
-	    }
-	    
-	}
-    }).unwrap();
+    listen(args[1].clone(), |out| Server { out: out, tx: tx.clone()  }).unwrap();
 
 		  
 } 
