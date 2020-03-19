@@ -3,20 +3,11 @@ extern crate jack;
 extern crate crossbeam_channel;
 extern crate openssl;
 
-use ws::{Handler, Message, Result, CloseCode};
+use ws::{listen, Handler, Message, Result, CloseCode};
 use std::env;
 use crossbeam_channel::{Sender, Receiver};
 use crossbeam_channel::bounded;
 
-use std::fs::File;
-use std::io::Read;
-use std::rc::Rc;
-
-use openssl::pkey::PKey;
-use openssl::ssl::{SslAcceptor, SslMethod, SslStream};
-use openssl::x509::X509;
-
-use ws::util::TcpStream;
 
 
 struct ClientBuffer {
@@ -35,8 +26,7 @@ enum ClientUpdate {
 
 struct Server {
     out: ws::Sender,
-    tx: Sender<ClientUpdate>,
-    ssl: Rc<SslAcceptor>
+    tx: Sender<ClientUpdate>
 }
 
 impl Handler for Server {
@@ -73,10 +63,6 @@ impl Handler for Server {
 	println!("Client {} closed the connection", connection_id);
 	
 	self.tx.send(ClientUpdate::Closed { connection_id: connection_id }).unwrap();
-    }
-
-    fn upgrade_ssl_server(&mut self, sock: TcpStream) -> ws::Result<SslStream<TcpStream>> {
-        self.ssl.accept(sock).map_err(From::from)
     }
 
 }
@@ -190,47 +176,9 @@ fn main() {
     
     let _active_client = client.activate_async((), process).unwrap();
 
-
-
-    let cert = {
-        let data = read_file(&args[2]).unwrap();
-        X509::from_pem(data.as_ref()).unwrap()
-    };
-
-    let pkey = {
-        let data = read_file(&args[3]).unwrap();
-        PKey::private_key_from_pem(data.as_ref()).unwrap()
-    };
-
-    let acceptor = Rc::new({
-        let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-        builder.set_private_key(&pkey).unwrap();
-        builder.set_certificate(&cert).unwrap();
-
-        builder.build()
-    });
-    
-    ws::Builder::new()
-        .with_settings(ws::Settings {
-            encrypt_server: true,
-            ..ws::Settings::default()
-        })
-        .build(|out: ws::Sender| Server {
-            out: out,
-	    tx: tx.clone(),
-            ssl: acceptor.clone(),
-        })
-        .unwrap()
-        .listen(args[1].clone())
-        .unwrap();
+    listen(args[1].clone(), |out| { Server { out: out, tx: tx.clone() } } ).unwrap();
 		  
 } 
 
 
-fn read_file(name: &str) -> std::io::Result<Vec<u8>> {
-    let mut file = File::open(name)?;
-    let mut buf = Vec::new();
-    file.read_to_end(&mut buf)?;
-    Ok(buf)
-}
 
