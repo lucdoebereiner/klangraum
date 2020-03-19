@@ -10,25 +10,8 @@
 
     <script>
 
-     let socket = new WebSocket("ws://localhost:3012");
+     let socket = new WebSocket("ws://localhost:8800");
 
-     function sendBlob(b) {
-	 /* b.data.arrayBuffer().then(d =>
-	    socket.send(d)
-	    );
-	  */
-	 console.log(b.data);
-	 socket.send(b.data);
-	 /* let buffer = new ArrayBuffer(4*4);
-	    let float32view = new Float32Array(buffer);
-	    float32view[0] = 1;
-	    float32view[1] = 2;
-	    float32view[2] = 3;
-	    float32view[3] = 4;
-	    socket.send(buffer);  */
-     }
-
-     //     console.log(MediaRecorder.isTypeSupported('audio/webm;codecs=pcm'));
      
      navigator.mediaDevices.getUserMedia({
 	 audio: {
@@ -43,17 +26,20 @@
 	      .then(function(stream) {
 
 
-		  const context = new AudioContext();
+		  const context = new AudioContext({ sampleRate: 48000 });
 		  const source = context.createMediaStreamSource(stream);
-		  const processor = context.createScriptProcessor(1024*2, 1, 1);
+		  const processor = context.createScriptProcessor(16384, 1, 1);
 
+		  
 		  source.connect(processor);
 		  processor.connect(context.destination);
 
 		  processor.onaudioprocess = function(e) {
-		      // Do something with the data, e.g. convert it to WAV
 		      socket.send(e.inputBuffer.getChannelData(0).buffer);
 		  };
+		  
+		  
+		  
 		  
 		  /* let mediaRecorder = new MediaRecorder(stream, {
 		     mimeType: "audio/webm;codecs=pcm"

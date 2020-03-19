@@ -4,31 +4,33 @@ extern crate jack;
 extern crate crossbeam_channel;
 
 use ws::listen;
-//use std::thread;
-// use std::sync::mpsc;
+use std::env;
 use crossbeam_channel::{Sender, Receiver};
 use crossbeam_channel::bounded;
 
 
 struct ClientBuffer {
-    current_buffer: [f32; 2048],
-//    next_buffer: [f32; 2048],
-    next_buffers: Vec<[f32; 2048]>,
+    current_buffer: [f32; 16384],
+    next_buffers: Vec<[f32; 16384]>,
     idx: usize,
+    init_wait : bool,
     connection_id: u32
 }
 
 struct ClientUpdate {
     connection_id: u32,
-    buffer: [f32; 2048]
+    buffer: [f32; 16384]
 }
 
 
 fn main() {
 
+    let args: Vec<String> = env::args().collect();
+    println!("Starting server on {}", args[1]);
+
     let mut client_buffers: Vec<ClientBuffer> = Vec::new();
     
-    let (tx, rx): (Sender<ClientUpdate>, Receiver<ClientUpdate>)  = bounded(1_000);
+    let (tx, rx): (Sender<ClientUpdate>, Receiver<ClientUpdate>)  = bounded(100);
     
     let (client, _status) =
         jack::Client::new("rust_jack", jack::ClientOptions::NO_START_SERVER).unwrap();
@@ -37,7 +39,7 @@ fn main() {
         .register_port("out_1", jack::AudioOut::default())
         .unwrap();
 
-    const BUFFER_LENGTH: usize = 2048;
+    const BUFFER_LENGTH: usize = 16384;
 
     let process = jack::ClosureProcessHandler::new(
         move |_: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
@@ -49,7 +51,8 @@ fn main() {
 
 		// check for new input
 		while let Ok(update) = rx.try_recv() {
-		    let idx = client_buffers.iter().position(|b| b.connection_id == update.connection_id);
+		    let idx = client_buffers.iter()
+			.position(|b| b.connection_id == update.connection_id);
 		    match idx {
 			Some(i) => client_buffers[i].next_buffers.push(update.buffer),
 			None => client_buffers.push(
@@ -57,30 +60,45 @@ fn main() {
 				current_buffer: update.buffer,
 				next_buffers: Vec::with_capacity(10),
 				idx: 0,
+				init_wait: true,
 				connection_id: update.connection_id,
 			    } )
 		    }
 		}
 
 		// sum and output
-		let sum = client_buffers.iter().fold(0f32, |sum, b| sum + b.current_buffer[b.idx]);
+		let sum = client_buffers.iter()
+		    .fold(0f32, |sum, b|
+			  if b.init_wait {
+			      sum
+			  } else {
+			      sum + b.current_buffer[b.idx]
+			  });
                 *v = sum;
 
 		// update
 		for i in 0..client_buffers.len() {
-		    if client_buffers[i].idx >= BUFFER_LENGTH - 1 {
-			
-			match client_buffers[i].next_buffers.pop() {
-			    Some(next) => client_buffers[i].current_buffer = next,
-			    None => ()
-			};
-
-			client_buffers[i].idx = 0;
+		    if client_buffers[i].init_wait {
+			if client_buffers[i].next_buffers.len() > 4 {
+			    client_buffers[i].init_wait = false;
+			}
 		    } else {
-			client_buffers[i].idx = (client_buffers[i].idx + 1) % BUFFER_LENGTH;
+		    
+			if client_buffers[i].idx >= BUFFER_LENGTH - 1 {
+			    
+			    match client_buffers[i].next_buffers.pop() {
+				Some(next) => client_buffers[i].current_buffer = next,
+				None => ()
+			    };
+			    
+			    client_buffers[i].idx = 0;
+			} else {
+			    client_buffers[i].idx = (client_buffers[i].idx + 1) % BUFFER_LENGTH;
+			}
 		    }
 		}
 
+		
 	    }
 
 	    
@@ -92,7 +110,7 @@ fn main() {
     let _active_client = client.activate_async((), process).unwrap();
 
     
-    listen("localhost:3012", |out| {
+    listen(args[1].clone(), |out| {
 	let tx1 = tx.clone();
 	 move |msg| {
             //out.send(msg)
@@ -105,8 +123,8 @@ fn main() {
 			std::slice::from_raw_parts_mut(vec.as_ptr() as *mut f32, vec.len() / 4)
 		    };
 
-		    let mut buffer: [f32; 2048] = [0.0; 2048];
-		    buffer.copy_from_slice(&buffer_slice[0..2048]);
+		    let mut buffer: [f32; 16384] = [0.0; 16384];
+		    buffer.copy_from_slice(&buffer_slice[0..16384]);
 		    
 		    tx1.send(ClientUpdate { connection_id: connection_id,
 					   buffer: buffer }).unwrap();
@@ -125,37 +143,4 @@ fn main() {
 } 
 
 
-
-// static mut DECODER: Option<opus::Decoder> = None;
-
-    // unsafe {vector
-    // 	DECODER = Some(opus::Decoder::new(48000, opus::Channels::Mono).unwrap());
-    // }
-//		    println!("{:?}", n);
-//		    println!("vec: {:?}", &vec[0..100]);
-//		    println!("output: {:?}", &audio);
-//		    println!("output0: {:?}", audio[0]);
-//		    println!("output length: {}", audio.len());
-// 		    println!("sum: {:?}", audio.iter()
-// //			     .take(n.unwrap())
-// 			     .cloned()
-// 			     // .inspect(|x| if x.is_nan() {
-// 			     // 	 println!("found nan: {}", x)
-// 			     // })
-// 			     .inspect(|x| 
-// 				 println!("{}", x)
-// 			     )
-// 			     .fold(0f32, |sum, i| sum + i));
-
-//		    let mut decoder = opus::Decoder::new(48000, opus::Channels::Mono).unwrap();
-		    // let mut output = Vec::with_capacity(48000);
-		    // output.resize(48000, 0f32);
-
-		    // let mut n = Ok(0);
-		    // unsafe {
-		    // 	match &mut DECODER {
-		    // 	    None => (),
-		    // 	    Some(d) => n = d.decode_float(&vec, &mut output, false)
-		    // 	};
-		    // }
 
