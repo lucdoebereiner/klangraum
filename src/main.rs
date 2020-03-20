@@ -30,50 +30,6 @@ enum ClientUpdate {
 }
 
 
-// struct Server {
-//     out: ws::Sender,
-//     tx: Sender<ClientUpdate>
-// }
-
-// impl Handler for Server {
-
-//     fn on_message(&mut self, msg: Message) -> Result<()> {
-
-// 	let connection_id = self.out.connection_id();
-	     
-// 	match msg {
-// 	    ws::Message::Binary(vec) => {
-		
-// 		let buffer_slice = unsafe {
-// 		    std::slice::from_raw_parts_mut(vec.as_ptr() as *mut f32, vec.len() / 4)
-// 		};
-		
-// 		let mut buffer: [f32; 16384] = [0.0; 16384];
-// 		buffer.copy_from_slice(&buffer_slice[0..16384]);
-		
-// 		self.tx.send(ClientUpdate::NewBuffer { connection_id: connection_id,
-// 						       buffer: buffer }).unwrap();
-		
-// 		Ok(())
-		    
-// 	    }
-// 	    _ => Ok(())	
-// 	}	
-//     }
-
-
-//     fn on_close(&mut self, _code: CloseCode, _reason: &str) {
-
-// 	let connection_id = self.out.connection_id();
-
-// 	println!("Client {} closed the connection", connection_id);
-	
-// 	self.tx.send(ClientUpdate::Closed { connection_id: connection_id }).unwrap();
-//     }
-
-// }
-
-
 fn main() {
 
     let args: Vec<String> = env::args().collect();
@@ -237,7 +193,6 @@ fn main() {
         }
     }
     
-    //listen(args[1].clone(), |out| { Server { out: out, tx: tx.clone() } } ).unwrap();
 		  
 } 
 
