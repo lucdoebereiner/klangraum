@@ -1,12 +1,18 @@
-extern crate ws;
 extern crate jack;
 extern crate crossbeam_channel;
-extern crate openssl;
+extern crate native_tls;
+extern crate tungstenite;
 
-use ws::{listen, Handler, Message, Result, CloseCode};
+use tungstenite::{accept, Message};
 use std::env;
 use crossbeam_channel::{Sender, Receiver};
 use crossbeam_channel::bounded;
+use std::thread::spawn;
+use native_tls::{Identity, TlsAcceptor, TlsStream};
+use std::fs::File;
+use std::io::{Read};
+use std::net::{TcpListener, TcpStream};
+use std::sync::Arc;
 
 
 
@@ -24,48 +30,48 @@ enum ClientUpdate {
 }
 
 
-struct Server {
-    out: ws::Sender,
-    tx: Sender<ClientUpdate>
-}
+// struct Server {
+//     out: ws::Sender,
+//     tx: Sender<ClientUpdate>
+// }
 
-impl Handler for Server {
+// impl Handler for Server {
 
-    fn on_message(&mut self, msg: Message) -> Result<()> {
+//     fn on_message(&mut self, msg: Message) -> Result<()> {
 
-	let connection_id = self.out.connection_id();
+// 	let connection_id = self.out.connection_id();
 	     
-	match msg {
-	    ws::Message::Binary(vec) => {
+// 	match msg {
+// 	    ws::Message::Binary(vec) => {
 		
-		let buffer_slice = unsafe {
-		    std::slice::from_raw_parts_mut(vec.as_ptr() as *mut f32, vec.len() / 4)
-		};
+// 		let buffer_slice = unsafe {
+// 		    std::slice::from_raw_parts_mut(vec.as_ptr() as *mut f32, vec.len() / 4)
+// 		};
 		
-		let mut buffer: [f32; 16384] = [0.0; 16384];
-		buffer.copy_from_slice(&buffer_slice[0..16384]);
+// 		let mut buffer: [f32; 16384] = [0.0; 16384];
+// 		buffer.copy_from_slice(&buffer_slice[0..16384]);
 		
-		self.tx.send(ClientUpdate::NewBuffer { connection_id: connection_id,
-						       buffer: buffer }).unwrap();
+// 		self.tx.send(ClientUpdate::NewBuffer { connection_id: connection_id,
+// 						       buffer: buffer }).unwrap();
 		
-		Ok(())
+// 		Ok(())
 		    
-	    }
-	    _ => Ok(())	
-	}	
-    }
+// 	    }
+// 	    _ => Ok(())	
+// 	}	
+//     }
 
 
-    fn on_close(&mut self, _code: CloseCode, _reason: &str) {
+//     fn on_close(&mut self, _code: CloseCode, _reason: &str) {
 
-	let connection_id = self.out.connection_id();
+// 	let connection_id = self.out.connection_id();
 
-	println!("Client {} closed the connection", connection_id);
+// 	println!("Client {} closed the connection", connection_id);
 	
-	self.tx.send(ClientUpdate::Closed { connection_id: connection_id }).unwrap();
-    }
+// 	self.tx.send(ClientUpdate::Closed { connection_id: connection_id }).unwrap();
+//     }
 
-}
+// }
 
 
 fn main() {
@@ -173,10 +179,65 @@ fn main() {
             jack::Control::Continue
         },
     );
-    
+
     let _active_client = client.activate_async((), process).unwrap();
 
-    listen(args[1].clone(), |out| { Server { out: out, tx: tx.clone() } } ).unwrap();
+    let mut file = File::open(args[2].clone()).unwrap();
+    let mut identity = vec![];
+    file.read_to_end(&mut identity).unwrap();
+    let identity = Identity::from_pkcs12(&identity, args[3]).unwrap();
+
+    let acceptor = TlsAcceptor::new(identity).unwrap();
+    let acceptor = Arc::new(acceptor);
+
+    let server = TcpListener::bind(args[1].clone()).unwrap();
+    
+    let mut id_counter = 0;
+    for stream in server.incoming() {
+        match stream {
+            Ok(stream) => {
+                let acceptor = acceptor.clone();
+		let tx1 = tx.clone();
+                spawn(move || {
+                    let stream = acceptor.accept(stream).unwrap();
+                    handle_client(stream, id_counter, tx1);
+                });
+		id_counter += 1;
+            }
+            Err(e) => { println!("error, {:?}", e) }
+        }
+    }
+	
+    fn handle_client(stream: TlsStream<TcpStream>, connection_id: u32, tx1: Sender<ClientUpdate>) -> () {
+	let mut websocket = accept(stream).unwrap();
+        loop {
+	    let msg = websocket.read_message().unwrap();
+
+	    match msg {
+		Message::Binary(vec) => {
+			
+		    let buffer_slice = unsafe {
+			std::slice::from_raw_parts_mut(vec.as_ptr() as *mut f32, vec.len() / 4)
+		    };
+		    
+		    let mut buffer: [f32; 16384] = [0.0; 16384];
+		    buffer.copy_from_slice(&buffer_slice[0..16384]);
+		    
+		    tx1.send(ClientUpdate::NewBuffer { connection_id: connection_id,
+						       buffer: buffer }).unwrap();
+		    
+		}
+		    
+		Message::Close(_) => {
+		    tx1.send(ClientUpdate::Closed { connection_id: connection_id }).unwrap();
+		    ()
+		}
+		_ => ()
+	    }	
+        }
+    }
+    
+    //listen(args[1].clone(), |out| { Server { out: out, tx: tx.clone() } } ).unwrap();
 		  
 } 
 

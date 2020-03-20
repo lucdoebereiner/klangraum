@@ -13,16 +13,9 @@
 
 
      let socket = new WebSocket("wss://static.184.12.47.78.clients.your-server.de:8800");
-
-
-     socket.onopen = function (event) {
-	 console.log(e);
-     }
      
      socket.onopen = function (event) {
 	 
-	 console.log("opened");
-	 console.log(e);
 	     navigator.mediaDevices.getUserMedia({
 		 audio: {
 		     sampleRate: 44100,

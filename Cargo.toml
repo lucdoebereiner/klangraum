@@ -9,9 +9,9 @@ edition = "2018"
 [dependencies]
 jack = "*"
 crossbeam-channel = "*"
-openssl = "*"
+native-tls = "*"
+tungstenite = "*"
 
-
-[dependencies.ws]
-version = "0.9.1"
-features = ["ssl"]
+# [dependencies.ws]
+# version = "0.9.1"
+# features = ["ssl"]
