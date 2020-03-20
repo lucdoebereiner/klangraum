@@ -185,7 +185,7 @@ fn main() {
     let mut file = File::open(args[2].clone()).unwrap();
     let mut identity = vec![];
     file.read_to_end(&mut identity).unwrap();
-    let identity = Identity::from_pkcs12(&identity, args[3]).unwrap();
+    let identity = Identity::from_pkcs12(&identity, args[3].clone()).unwrap();
 
     let acceptor = TlsAcceptor::new(identity).unwrap();
     let acceptor = Arc::new(acceptor);
