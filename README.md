@@ -4,7 +4,7 @@ sum incoming websocket audio streams and send to jack
 ## run
 
 ``` bash
-$ cargo run --release localhost:8800 pfx-file pw
+$ cargo run --release localhost:8800 pfx-file pw channels
 ```
 
 Open client.html.
