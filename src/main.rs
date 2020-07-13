@@ -136,12 +136,12 @@ fn main() {
                             .position(|b| b.connection_id == connection_id);
                         match idx {
                             Some(i) => {
-                                println!("encoded original length: {:}", buffer.len());
+                                //                                println!("encoded original length: {:}", buffer.len());
 
                                 let decoded = client_buffers[i].decode(buffer);
                                 match decoded {
                                     Ok(dec) => {
-                                        println!("decoded length: {}", dec.len());
+                                        //println!("decoded length: {}", dec.len());
                                         client_buffers[i].next_buffers.push(dec)
                                     }
                                     _ => (),
