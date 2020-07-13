@@ -150,7 +150,8 @@ fn main() {
                                 };
 
                                 let decoded = client_buffer.decode(buffer);
-                                client_buffer.next_buffers.push(decoded);
+                                println!("decoded: {:?}", decoded);
+                                client_buffer.current_buffer = decoded;
 
                                 client_buffers.push(client_buffer);
 
