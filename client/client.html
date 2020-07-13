@@ -3,6 +3,7 @@
     <head>
 	<title>Klangraum</title>
 	<meta charset="utf-8" />
+	<script src='lame.all.js'></script>
     </head>
     <body>
 	<h1>Klangraum</h1>
@@ -13,64 +14,73 @@
 
 
      let socket = new WebSocket("wss://static.184.12.47.78.clients.your-server.de:8800");
+
+     const mp3encoder = new lamejs.Mp3Encoder(1, 44100, 128);
      
      socket.onopen = function (event) {
-	 
-	     navigator.mediaDevices.getUserMedia({
-		 audio: {
-		     sampleRate: 44100,
-		     channelCount: 1,
-		     echoCancellation: false,
-		     noiseSuppression: false,
-		     autoGainControl: false
-		 },
-		 video : false
-	     })
-		      .then(function(stream) {
-
-			  const context = new AudioContext({ sampleRate: 44100 });
-			  const source = context.createMediaStreamSource(stream);
-			  const processor = context.createScriptProcessor(16384, 1, 1);
-			  
-			  source.connect(processor);
-			  processor.connect(context.destination);
-			  processor.onaudioprocess = function(e) {
-			      socket.send(e.inputBuffer.getChannelData(0).buffer);
-			  };		  
-
-		      })
-		      .catch(function(err) {
-
-		      });
-
-	 };
 
 	 
 	 
-	 
-	 /* socket.onopen = function(e) {
-	    alert("[open] Connection established");
-	    alert("Sending to server");
-	    socket.send("My name is John");
-	  * };
+	 navigator.mediaDevices.getUserMedia({
+	     audio: {
+		 sampleRate: 44100,
+		 channelCount: 1,
+		 echoCancellation: false,
+		 noiseSuppression: false,
+		 autoGainControl: false
+	     },
+	     video : false
+	 })
+		  .then(function(stream) {
 
-	  * socket.onmessage = function(event) {
-	    alert(`[message] Data received from server: ${event.data}`);
-	  * };
+		      const context = new AudioContext({ sampleRate: 44100 });
+		      const source = context.createMediaStreamSource(stream);
+		      const processor = context.createScriptProcessor(16384, 1, 1);
+		      
+		      source.connect(processor);
+		      processor.connect(context.destination);
+		      processor.onaudioprocess = function(e) {
+			  let inputBuffer = e.inputBuffer.getChannelData(0);
+			  let samples = Int16Array.from(inputBuffer.map(x => (x>0 ? x*0x7FFF : x*0x8000)))
+			  var mp3Chunk = mp3encoder.encodeBuffer(samples);
+			  console.log(mp3Chunk);
+			  socket.send(mp3Chunk);
+			  //			  socket.send(e.inputBuffer.getChannelData(0).buffer);
+		      };		  
 
-	  * socket.onclose = function(event) {
-	    if (event.wasClean) {
-	    alert(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
-	    } else {
-	    // e.g. server process killed or network down
-	    // event.code is usually 1006 in this case
-	    alert('[close] Connection died');
-	    }
-	  * };
+		  })
+		  .catch(function(err) {
 
-	  * socket.onerror = function(error) {
-	    alert(`[error] ${error.message}`);
-	  * }; */
+		  });
+
+     };
+
+     
+     
+     
+     /* socket.onopen = function(e) {
+	alert("[open] Connection established");
+	alert("Sending to server");
+	socket.send("My name is John");
+      * };
+
+      * socket.onmessage = function(event) {
+	alert(`[message] Data received from server: ${event.data}`);
+      * };
+
+      * socket.onclose = function(event) {
+	if (event.wasClean) {
+	alert(`[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+	} else {
+	// e.g. server process killed or network down
+	// event.code is usually 1006 in this case
+	alert('[close] Connection died');
+	}
+      * };
+
+      * socket.onerror = function(error) {
+	alert(`[error] ${error.message}`);
+      * }; */
     </script>
     
 </html>

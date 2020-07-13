@@ -11,6 +11,7 @@ jack = "*"
 crossbeam-channel = "*"
 native-tls = "*"
 tungstenite = "*"
+minimp3 = "*"
 
 # [dependencies.ws]
 # version = "0.9.1"
