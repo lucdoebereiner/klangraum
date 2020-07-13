@@ -11,6 +11,7 @@ use std::env;
 use std::fs::File;
 use std::io::Read;
 //use std::io::Read;
+use std::collections::VecDeque;
 use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
 use std::thread::spawn;
@@ -20,7 +21,8 @@ struct ClientBuffer {
     //    current_buffer: [f32; 16384],
     //    next_buffers: Vec<[f32; 16384]>,
     current_buffer: Vec<f32>,
-    next_buffers: Vec<Vec<f32>>,
+    //    next_buffers: Vec<Vec<f32>>,
+    next_buffers: VecDeque<Vec<f32>>,
     idx: usize,
     init_wait: bool,
     connection_id: u32,
@@ -142,7 +144,7 @@ fn main() {
                                 match decoded {
                                     Ok(dec) => {
                                         //println!("decoded length: {}", dec.len());
-                                        client_buffers[i].next_buffers.push(dec)
+                                        client_buffers[i].next_buffers.push_back(dec)
                                     }
                                     _ => (),
                                 }
@@ -151,7 +153,7 @@ fn main() {
                                 let decoder = Decoder::new(Mp3Buffer { data: vec![] });
                                 let mut client_buffer = ClientBuffer {
                                     current_buffer: vec![],
-                                    next_buffers: Vec::with_capacity(10),
+                                    next_buffers: VecDeque::with_capacity(10),
                                     idx: 0,
                                     init_wait: true,
                                     connection_id: connection_id,
@@ -205,7 +207,7 @@ fn main() {
                             sum += b.current_buffer[b.idx];
 
                             if b.idx >= length - 1 {
-                                match b.next_buffers.pop() {
+                                match b.next_buffers.pop_front() {
                                     Some(next) => b.current_buffer = next,
                                     None => (),
                                 };
