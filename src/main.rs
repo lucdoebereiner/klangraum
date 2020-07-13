@@ -136,6 +136,10 @@ fn main() {
                         match idx {
                             Some(i) => {
                                 let decoded = client_buffers[i].decode(buffer);
+
+                                println!("encoded original: {}", buffer);
+                                println!("decoded lengths: {}", decoded.len());
+
                                 client_buffers[i].next_buffers.push(decoded)
                             }
                             None => {
@@ -150,7 +154,6 @@ fn main() {
                                 };
 
                                 let decoded = client_buffer.decode(buffer);
-                                println!("decoded: {:?}", decoded);
                                 client_buffer.current_buffer = decoded;
 
                                 client_buffers.push(client_buffer);
