@@ -16,7 +16,8 @@
      let socket = new WebSocket("wss://static.184.12.47.78.clients.your-server.de:8800");
 
      const mp3encoder = new lamejs.Mp3Encoder(1, 44100, 128);
-     
+
+     const CHUNK_LENGTH = 1152;
      socket.onopen = function (event) {
 
 	 
@@ -39,13 +40,30 @@
 		      
 		      source.connect(processor);
 		      processor.connect(context.destination);
+
+		      let toDecode = new Int16Array(CHUNK_LENGTH);
+		      let toDecodeI = 0;
 		      processor.onaudioprocess = function(e) {
-			  let inputBuffer = e.inputBuffer.getChannelData(0);
-			  let samples = Int16Array.from(inputBuffer.map(x => (x>0 ? x*0x7FFF : x*0x8000)))
-			  var mp3Chunk = mp3encoder.encodeBuffer(samples);
-			  console.log(mp3Chunk);
-			  socket.send(mp3Chunk);
-			  //			  socket.send(e.inputBuffer.getChannelData(0).buffer);
+			  let audioData = e.inputBuffer.getChannelData(0);
+			  for (let i = 0; i < audioData.length; i++) {
+
+			      if (toDecodeI >= CHUNK_LENGTH) {
+				  let mp3Chunk = mp3encoder.encodeBuffer(toDecode);
+				  socket.send(mp3Chunk);
+				  toDecode = new Int16Array(CHUNK_LENGTH);
+				  toDecodeI = 0;
+			      }
+
+			      let sampleFloat = audioData[i]
+			      let sample = sampleFloat > 0 ? sampleFloat*0x7FFF : sampleFloat*0x8000;
+
+			      toDecode[toDecodeI] = sample;
+			      toDecodeI += 1;
+			      
+//			      console.log(mp3Chunk);
+
+			      //			  socket.send(e.inputBuffer.getChannelData(0).buffer);
+			  }
 		      };		  
 
 		  })
