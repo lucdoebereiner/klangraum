@@ -50,7 +50,7 @@
 			      if (toDecodeI >= CHUNK_LENGTH) {
 				  let mp3Chunk = mp3encoder.encodeBuffer(toDecode);
 				  socket.send(mp3Chunk);
-				  console.log('sending chunk with length ', mp3Chunk.length());
+				  console.log('sending chunk with length ', mp3Chunk.length);
 				  toDecode = new Int16Array(CHUNK_LENGTH);
 				  toDecodeI = 0;
 			      }
