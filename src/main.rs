@@ -135,11 +135,11 @@ fn main() {
                             .position(|b| b.connection_id == connection_id);
                         match idx {
                             Some(i) => {
-                                println!("encoded original: {:?}", buffer);
+                                //                                println!("encoded original: {:?}", buffer);
 
                                 let decoded = client_buffers[i].decode(buffer);
 
-                                println!("decoded lengths: {}", decoded.len());
+                                println!("decoded length: {}", decoded.len());
 
                                 client_buffers[i].next_buffers.push(decoded)
                             }
