@@ -39,14 +39,15 @@ impl Read for Mp3Buffer {
 }
 
 impl ClientBuffer {
-    fn decode(&mut self, mp3_data: Vec<u8>) -> Vec<f32> {
+    fn decode(&mut self, mp3_data: Vec<u8>) -> Result<Vec<f32>, minimp3::Error> {
         self.decoder.reader_mut().data = mp3_data;
-        let frame = self.decoder.next_frame().unwrap();
-        frame
-            .data
-            .into_iter()
-            .map(|s| (s as f32) / (i16::max_value() as f32))
-            .collect()
+        self.decoder.next_frame().map(|frame| {
+            frame
+                .data
+                .into_iter()
+                .map(|s| (s as f32) / (i16::max_value() as f32))
+                .collect()
+        })
     }
 }
 
@@ -138,10 +139,13 @@ fn main() {
                                 println!("encoded original length: {:}", buffer.len());
 
                                 let decoded = client_buffers[i].decode(buffer);
-
-                                println!("decoded length: {}", decoded.len());
-
-                                client_buffers[i].next_buffers.push(decoded)
+                                match decoded {
+                                    Ok(dec) => {
+                                        println!("decoded length: {}", dec.len());
+                                        client_buffers[i].next_buffers.push(dec)
+                                    }
+                                    _ => (),
+                                }
                             }
                             None => {
                                 let decoder = Decoder::new(Mp3Buffer { data: vec![] });
@@ -155,9 +159,13 @@ fn main() {
                                 };
 
                                 let decoded = client_buffer.decode(buffer);
-                                client_buffer.current_buffer = decoded;
-
-                                client_buffers.push(client_buffer);
+                                match decoded {
+                                    Ok(dec) => {
+                                        client_buffer.current_buffer = dec;
+                                        client_buffers.push(client_buffer);
+                                    }
+                                    _ => (),
+                                }
 
                                 println!(
                                     "new client: {}, total number: {}",
