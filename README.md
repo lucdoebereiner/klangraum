@@ -10,9 +10,7 @@ $ cargo run --release localhost:8800 channels pfx-file pw
 Open client.html.
 
 ## TODO
-* handle connection closed more gracefully
-* perhaps lower sr
 * max streams
 * return stats
 * Check client side for efficiency (audio worklet perhaps)
-* Opus or mp3 for audio over websocket (now pcm)?
+
