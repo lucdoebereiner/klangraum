@@ -13,14 +13,19 @@
 
 
 
-     let socket = new WebSocket("wss://static.184.12.47.78.clients.your-server.de:8800");
+
+     //     let socket = new WebSocket("wss://static.184.12.47.78.clients.your-server.de:8800");
+     let socket = new WebSocket("ws://localhost:8800");
 
      const mp3encoder = new lamejs.Mp3Encoder(1, 44100, 128);
-
+     
      const CHUNK_LENGTH = 1152;
-     socket.onopen = function (event) {
 
-	 
+     socket.onmessage = function(event) {
+	 console.debug("WebSocket message received:", event);
+     };
+     
+     socket.onopen = function (event) {	 
 	 
 	 navigator.mediaDevices.getUserMedia({
 	     audio: {
@@ -33,7 +38,7 @@
 	     video : false
 	 })
 		  .then(function(stream) {
-
+		      
 		      const context = new AudioContext({ sampleRate: 44100 });
 		      const source = context.createMediaStreamSource(stream);
 		      const processor = context.createScriptProcessor(16384, 1, 1);
@@ -50,7 +55,7 @@
 			      if (toDecodeI >= CHUNK_LENGTH) {
 				  let mp3Chunk = mp3encoder.encodeBuffer(toDecode);
 				  socket.send(mp3Chunk);
-//				  console.log('sending chunk with length ', mp3Chunk.length);
+				  //				  console.log('sending chunk with length ', mp3Chunk.length);
 				  toDecode = new Int16Array(CHUNK_LENGTH);
 				  toDecodeI = 0;
 			      }

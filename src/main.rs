@@ -1,27 +1,18 @@
-// extern crate crossbeam_channel;
-// extern crate jack;
-// extern crate native_tls;
-// extern crate tungstenite;
-
 use crossbeam_channel::bounded;
 use crossbeam_channel::{Receiver, Sender};
 use minimp3::Decoder;
-use native_tls::{Identity, TlsAcceptor, TlsStream};
+use native_tls::{Identity, TlsAcceptor};
+use std::collections::VecDeque;
 use std::env;
 use std::fs::File;
-use std::io::Read;
-//use std::io::Read;
-use std::collections::VecDeque;
-use std::net::{TcpListener, TcpStream};
+use std::io::{Read, Write};
+use std::net::TcpListener;
 use std::sync::Arc;
 use std::thread::spawn;
 use tungstenite::{accept, Message};
 
 struct ClientBuffer {
-    //    current_buffer: [f32; 16384],
-    //    next_buffers: Vec<[f32; 16384]>,
     current_buffer: Vec<f32>,
-    //    next_buffers: Vec<Vec<f32>>,
     next_buffers: VecDeque<Vec<f32>>,
     idx: usize,
     init_wait: bool,
@@ -51,38 +42,51 @@ impl ClientBuffer {
                 .collect()
         })
     }
+
+    fn process(&mut self) -> f32 {
+        let mut output = 0.0;
+        if !self.init_wait {
+            output = self.current_buffer[self.idx];
+            let length = self.current_buffer.len();
+            if self.idx >= length - 1 {
+                match self.next_buffers.pop_front() {
+                    Some(next) => self.current_buffer = next,
+                    None => (),
+                };
+                self.idx = 0;
+            } else {
+                self.idx = (self.idx + 1) % length
+            };
+        } else if self.next_buffers.len() > 4 {
+            self.init_wait = false;
+        }
+        output
+    }
 }
 
 enum ClientUpdate {
-    NewBuffer {
-        connection_id: u32,
-        buffer: Vec<u8>,
-        //	buffer: [f32; 16384],
-    },
-    Closed {
-        connection_id: u32,
-    },
+    NewBuffer { connection_id: u32, buffer: Vec<u8> },
+    Closed { connection_id: u32 },
 }
 
-fn handle_client(
-    stream: TlsStream<TcpStream>,
+struct MsgToClient {
+    id: u32,
+    jack_input: usize,
+}
+
+fn handle_client<S: Read + Write>(
+    mut websocket: tungstenite::WebSocket<S>,
+    //    stream: TlsStream<TcpStream>,
     connection_id: u32,
     tx1: Sender<ClientUpdate>,
+    receiver: Receiver<MsgToClient>,
 ) -> () {
-    let mut websocket = accept(stream).unwrap();
-    loop {
-        let msg = websocket.read_message().unwrap();
+    while let Ok(msg) = websocket.read_message() {
         match msg {
             Message::Binary(vec) => {
-                // let buffer_slice = unsafe {
-                //     std::slice::from_raw_parts_mut(vec.as_ptr() as *mut f32, vec.len() / 4)
-                // };
-                // let mut buffer: [f32; 16384] = [0.0; 16384];
-                // buffer.copy_from_slice(&buffer_slice[0..16384]);
                 tx1.send(ClientUpdate::NewBuffer {
                     connection_id: connection_id,
                     buffer: vec,
-                    //                    buffer: buffer,
                 })
                 .unwrap();
             }
@@ -95,21 +99,72 @@ fn handle_client(
             }
             _ => (),
         }
+        if let Ok(to_client) = receiver.try_recv() {
+            websocket
+                .write_message(Message::Text(format!(
+                    "{{ id: {}, channel: {} }}",
+                    to_client.id, to_client.jack_input
+                )))
+                .unwrap();
+        }
     }
+}
+
+fn find_buffer_position(
+    buffers: &[Vec<ClientBuffer>],
+    connection_id: u32,
+) -> Option<(usize, usize)> {
+    let mut x = 0;
+    let mut y = 0;
+    let mut found = false;
+
+    while !found && x < buffers.len() {
+        let idx = buffers[x]
+            .iter()
+            .position(|b| b.connection_id == connection_id);
+        match idx {
+            Some(found_y) => {
+                y = found_y;
+                found = true
+            }
+            None => x += 1,
+        }
+    }
+
+    if found {
+        Some((x, y))
+    } else {
+        None
+    }
+}
+
+fn next_free_index(buffers: &[Vec<ClientBuffer>]) -> usize {
+    let lengths: Vec<usize> = buffers.iter().map(|v| v.len()).collect();
+    let index = lengths
+        .iter()
+        .min()
+        .and_then(|&smallest| lengths.iter().position(|&l| l == smallest));
+    index.unwrap_or(0)
 }
 
 fn main() {
     let args: Vec<String> = env::args().collect();
     println!("Starting server on {}", args[1]);
 
-    let mut client_buffers: Vec<ClientBuffer> = Vec::new();
-
     let (tx, rx): (Sender<ClientUpdate>, Receiver<ClientUpdate>) = bounded(100);
 
-    let (client, _status) =
-        jack::Client::new("rust_jack", jack::ClientOptions::NO_START_SERVER).unwrap();
+    let (sender_client_msg, receiver_client_msg): (Sender<MsgToClient>, Receiver<MsgToClient>) =
+        bounded(100);
 
-    let n_outs = args[4].parse::<usize>().unwrap();
+    let (client, _status) =
+        jack::Client::new("klangraum_input", jack::ClientOptions::NO_START_SERVER).unwrap();
+
+    let n_outs = args[2].parse::<usize>().unwrap();
+
+    let mut client_buffers: Vec<Vec<ClientBuffer>> = Vec::with_capacity(n_outs);
+    for _i in 0..n_outs {
+        client_buffers.push(Vec::new())
+    }
 
     let mut out_ports = Vec::new();
 
@@ -122,8 +177,6 @@ fn main() {
         );
     }
 
-    // const BUFFER_LENGTH: usize = 16384;
-
     let process = jack::ClosureProcessHandler::new(
         move |_: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
             // check for new input
@@ -133,19 +186,12 @@ fn main() {
                         connection_id,
                         buffer,
                     } => {
-                        let idx = client_buffers
-                            .iter()
-                            .position(|b| b.connection_id == connection_id);
+                        let idx = find_buffer_position(&client_buffers, connection_id);
                         match idx {
-                            Some(i) => {
-                                //                                println!("encoded original length: {:}", buffer.len());
-
-                                let decoded = client_buffers[i].decode(buffer);
+                            Some((x, y)) => {
+                                let decoded = client_buffers[x][y].decode(buffer);
                                 match decoded {
-                                    Ok(dec) => {
-                                        //println!("decoded length: {}", dec.len());
-                                        client_buffers[i].next_buffers.push_back(dec)
-                                    }
+                                    Ok(dec) => client_buffers[x][y].next_buffers.push_back(dec),
                                     _ => (),
                                 }
                             }
@@ -164,11 +210,18 @@ fn main() {
                                 match decoded {
                                     Ok(dec) => {
                                         client_buffer.current_buffer = dec;
-                                        client_buffers.push(client_buffer);
+                                        let index = next_free_index(&client_buffers);
+                                        client_buffers[index].push(client_buffer);
+                                        sender_client_msg
+                                            .send(MsgToClient {
+                                                id: connection_id,
+                                                jack_input: index,
+                                            })
+                                            .unwrap();
                                     }
                                     _ => (),
                                 }
-
+                                //
                                 println!(
                                     "new client: {}, total number: {}",
                                     connection_id,
@@ -178,12 +231,10 @@ fn main() {
                         }
                     }
                     ClientUpdate::Closed { connection_id } => {
-                        let idx = client_buffers
-                            .iter()
-                            .position(|b| b.connection_id == connection_id);
+                        let idx = find_buffer_position(&client_buffers, connection_id);
                         match idx {
-                            Some(i) => {
-                                client_buffers.remove(i);
+                            Some((x, y)) => {
+                                client_buffers[x].remove(y);
                                 ()
                             }
                             None => (),
@@ -197,31 +248,9 @@ fn main() {
                 let out = out_ports[out_i].as_mut_slice(ps);
                 for v in out.iter_mut() {
                     // sum and output
-                    let mut buffer_idx = out_i;
-                    let mut sum = 0f32;
-                    while buffer_idx < client_buffers.len() {
-                        let b = &mut client_buffers[buffer_idx];
-                        if !b.init_wait {
-                            let length = b.current_buffer.len();
-
-                            sum += b.current_buffer[b.idx];
-
-                            if b.idx >= length - 1 {
-                                match b.next_buffers.pop_front() {
-                                    Some(next) => b.current_buffer = next,
-                                    None => (),
-                                };
-                                b.idx = 0;
-                            } else {
-                                b.idx = (b.idx + 1) % length
-                            };
-                        } else {
-                            if b.next_buffers.len() > 4 {
-                                b.init_wait = false;
-                            }
-                        };
-                        buffer_idx += n_outs;
-                    }
+                    let sum = client_buffers[out_i]
+                        .iter_mut()
+                        .fold(0f32, |acc, buf| acc + buf.process());
                     *v = sum;
                 }
             }
@@ -233,13 +262,17 @@ fn main() {
 
     let _active_client = client.activate_async((), process).unwrap();
 
-    let mut file = File::open(args[2].clone()).unwrap();
-    let mut identity = vec![];
-    file.read_to_end(&mut identity).unwrap();
-    let identity = Identity::from_pkcs12(&identity, &args[3]).unwrap();
+    let mut acceptor = None;
 
-    let acceptor = TlsAcceptor::new(identity).unwrap();
-    let acceptor = Arc::new(acceptor);
+    if args.len() > 4 {
+        let mut file = File::open(args[3].clone()).unwrap();
+        let mut identity = vec![];
+        file.read_to_end(&mut identity).unwrap();
+        let identity = Identity::from_pkcs12(&identity, &args[4]).unwrap();
+
+        let tls_acceptor = TlsAcceptor::new(identity).unwrap();
+        acceptor = Some(Arc::new(tls_acceptor));
+    }
 
     let server = TcpListener::bind(args[1].clone()).unwrap();
 
@@ -249,9 +282,18 @@ fn main() {
             Ok(stream) => {
                 let acceptor = acceptor.clone();
                 let tx1 = tx.clone();
+                let receiver = receiver_client_msg.clone();
                 spawn(move || {
-                    let stream = acceptor.accept(stream).unwrap();
-                    handle_client(stream, id_counter, tx1);
+                    match acceptor {
+                        Some(acceptor) => {
+                            let ws = accept(acceptor.accept(stream).unwrap()).unwrap();
+                            handle_client(ws, id_counter, tx1, receiver)
+                        }
+                        None => {
+                            let ws = accept(stream).unwrap();
+                            handle_client(ws, id_counter, tx1, receiver);
+                        }
+                    };
                 });
                 id_counter += 1;
             }
