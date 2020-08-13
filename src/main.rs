@@ -102,7 +102,7 @@ fn handle_client<S: Read + Write>(
         if let Ok(to_client) = receiver.try_recv() {
             websocket
                 .write_message(Message::Text(format!(
-                    "{{ id: {}, channel: {} }}",
+                    "{{ \"id\": {}, \"channel\": {} }}",
                     to_client.id, to_client.jack_input
                 )))
                 .unwrap();
