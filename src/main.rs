@@ -236,8 +236,11 @@ fn main() {
                                     connection_id,
                                     client_buffers.len()
                                 );
-                                match write!(log_file, "{}\n", number_of_listeners(&client_buffers))
-                                {
+                                match writeln!(
+                                    log_file,
+                                    "aa{}",
+                                    number_of_listeners(&client_buffers)
+                                ) {
                                     _ => (),
                                 };
                                 let _ = log_file.flush();
@@ -249,8 +252,11 @@ fn main() {
                         match idx {
                             Some((x, y)) => {
                                 client_buffers[x].remove(y);
-                                match write!(log_file, "{}\n", number_of_listeners(&client_buffers))
-                                {
+                                match writeln!(
+                                    log_file,
+                                    "hi{}",
+                                    number_of_listeners(&client_buffers)
+                                ) {
                                     _ => (),
                                 };
                                 let _ = log_file.flush();
