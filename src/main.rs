@@ -8,7 +8,6 @@ use std::collections::VecDeque;
 use std::env;
 use std::fs::File;
 use std::fs::OpenOptions;
-use std::io::BufWriter;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::sync::Arc;
@@ -191,9 +190,9 @@ fn main() {
                 .read(true)
                 .write(true)
                 .create(true)
-                .open("log2.log")
+                .open("log.log")
             {
-                Err(why) => panic!("couldn't create {}: {}", "log2.log", why),
+                Err(why) => panic!("couldn't create {}: {}", "log.log", why),
                 Ok(file) => file,
             };
 
