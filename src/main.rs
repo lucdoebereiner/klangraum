@@ -186,12 +186,10 @@ fn main() {
 
     let process = jack::ClosureProcessHandler::new(
         move |_: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
-            let mut log_file = match File::create("log.log") {
+            let mut log_file = match File::create("log1.log") {
                 Err(why) => panic!("couldn't create {}: {}", "log.log", why),
                 Ok(file) => file,
             };
-
-            let mut writer = BufWriter::new(log_file);
 
             // check for new input
             while let Ok(update) = rx.try_recv() {
@@ -241,8 +239,7 @@ fn main() {
                                     connection_id,
                                     client_buffers.len()
                                 );
-                                let _ = writeln!(writer, "Hello");
-                                let _ = writer.flush();
+                                writeln!(log_file, "Hello").unwrap();
                             }
                         }
                     }
@@ -251,8 +248,7 @@ fn main() {
                         match idx {
                             Some((x, y)) => {
                                 client_buffers[x].remove(y);
-                                let _ = writeln!(writer, "Closed");
-                                let _ = writer.flush();
+                                writeln!(log_file, "Hello").unwrap();
                             }
                             None => (),
                         }
