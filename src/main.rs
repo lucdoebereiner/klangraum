@@ -147,6 +147,10 @@ fn next_free_index(buffers: &[Vec<ClientBuffer>]) -> usize {
     index.unwrap_or(0)
 }
 
+fn number_of_listeners(buffers: &[Vec<ClientBuffer>]) -> usize {
+    buffers.iter().map(|v| v.len()).sum()
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     println!("Starting server on {}", args[1]);
@@ -179,6 +183,11 @@ fn main() {
 
     let process = jack::ClosureProcessHandler::new(
         move |_: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
+            let mut log_file = match File::create("log.log") {
+                Err(why) => panic!("couldn't create {}: {}", "log.log", why),
+                Ok(file) => file,
+            };
+
             // check for new input
             while let Ok(update) = rx.try_recv() {
                 match update {
@@ -227,6 +236,10 @@ fn main() {
                                     connection_id,
                                     client_buffers.len()
                                 );
+                                match write!(log_file, "{}\n", number_of_listeners(&client_buffers))
+                                {
+                                    _ => (),
+                                }
                             }
                         }
                     }
@@ -235,7 +248,10 @@ fn main() {
                         match idx {
                             Some((x, y)) => {
                                 client_buffers[x].remove(y);
-                                ()
+                                match write!(log_file, "{}\n", number_of_listeners(&client_buffers))
+                                {
+                                    _ => (),
+                                }
                             }
                             None => (),
                         }
