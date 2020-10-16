@@ -1,5 +1,7 @@
 use crossbeam_channel::bounded;
 use crossbeam_channel::{Receiver, Sender};
+use flexi_logger::{opt_format, Logger};
+use log::*;
 use minimp3::Decoder;
 use native_tls::{Identity, TlsAcceptor};
 use std::collections::VecDeque;
@@ -152,6 +154,13 @@ fn number_of_listeners(buffers: &[Vec<ClientBuffer>]) -> usize {
 }
 
 fn main() {
+    Logger::with_env_or_str("myprog=debug, mylib=warn")
+        .log_to_file()
+        //        .directory("log_files")
+        .format(opt_format)
+        .start()
+        .unwrap();
+
     let args: Vec<String> = env::args().collect();
     println!("Starting server on {}", args[1]);
 
@@ -236,7 +245,7 @@ fn main() {
                                     connection_id,
                                     client_buffers.len()
                                 );
-                                log_file.write_all("Hi".as_bytes()).expect("write failed");
+                                info!("hi");
                             }
                         }
                     }
@@ -245,9 +254,7 @@ fn main() {
                         match idx {
                             Some((x, y)) => {
                                 client_buffers[x].remove(y);
-                                log_file
-                                    .write_all("Closed".as_bytes())
-                                    .expect("write failed");
+                                info!("closed");
                             }
                             None => (),
                         }

@@ -12,6 +12,8 @@ crossbeam-channel = "*"
 native-tls = "*"
 tungstenite = "*"
 minimp3 = "*"
+flexi_logger = { version = "0.16", default_features = false }
+log = "0.4"
 
 # [dependencies.ws]
 # version = "0.9.1"
