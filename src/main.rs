@@ -239,7 +239,8 @@ fn main() {
                                 match write!(log_file, "{}\n", number_of_listeners(&client_buffers))
                                 {
                                     _ => (),
-                                }
+                                };
+                                let _ = log_file.flush();
                             }
                         }
                     }
@@ -251,7 +252,8 @@ fn main() {
                                 match write!(log_file, "{}\n", number_of_listeners(&client_buffers))
                                 {
                                     _ => (),
-                                }
+                                };
+                                let _ = log_file.flush();
                             }
                             None => (),
                         }
