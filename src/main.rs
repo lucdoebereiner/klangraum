@@ -7,6 +7,7 @@ use native_tls::{Identity, TlsAcceptor};
 use std::collections::VecDeque;
 use std::env;
 use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::BufWriter;
 use std::io::{Read, Write};
 use std::net::TcpListener;
@@ -186,8 +187,13 @@ fn main() {
 
     let process = jack::ClosureProcessHandler::new(
         move |_: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
-            let mut log_file = match File::create("log1.log") {
-                Err(why) => panic!("couldn't create {}: {}", "log.log", why),
+            let mut log_file = match OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .open("log2.log")
+            {
+                Err(why) => panic!("couldn't create {}: {}", "log2.log", why),
                 Ok(file) => file,
             };
 
