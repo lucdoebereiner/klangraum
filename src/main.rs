@@ -245,7 +245,8 @@ fn main() {
                                     connection_id,
                                     client_buffers.len()
                                 );
-                                writeln!(log_file, "Hello").unwrap();
+                                writeln!(log_file, "{}", number_of_listeners(&client_buffers))
+                                    .unwrap();
                             }
                         }
                     }
@@ -254,7 +255,8 @@ fn main() {
                         match idx {
                             Some((x, y)) => {
                                 client_buffers[x].remove(y);
-                                writeln!(log_file, "Hello").unwrap();
+                                writeln!(log_file, "{}", number_of_listeners(&client_buffers))
+                                    .unwrap();
                             }
                             None => (),
                         }
