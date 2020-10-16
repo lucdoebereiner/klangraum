@@ -1,12 +1,13 @@
 use crossbeam_channel::bounded;
 use crossbeam_channel::{Receiver, Sender};
-use flexi_logger::{opt_format, Logger};
-use log::*;
+// use flexi_logger::{opt_format, Logger};
+// use log::*;
 use minimp3::Decoder;
 use native_tls::{Identity, TlsAcceptor};
 use std::collections::VecDeque;
 use std::env;
 use std::fs::File;
+use std::io::BufWriter;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::sync::Arc;
@@ -154,13 +155,6 @@ fn number_of_listeners(buffers: &[Vec<ClientBuffer>]) -> usize {
 }
 
 fn main() {
-    Logger::with_env_or_str("myprog=debug, mylib=warn")
-        .log_to_file()
-        //        .directory("log_files")
-        .format(opt_format)
-        .start()
-        .unwrap();
-
     let args: Vec<String> = env::args().collect();
     println!("Starting server on {}", args[1]);
 
@@ -196,6 +190,8 @@ fn main() {
                 Err(why) => panic!("couldn't create {}: {}", "log.log", why),
                 Ok(file) => file,
             };
+
+            let mut writer = BufWriter::new(log_file);
 
             // check for new input
             while let Ok(update) = rx.try_recv() {
@@ -245,7 +241,8 @@ fn main() {
                                     connection_id,
                                     client_buffers.len()
                                 );
-                                info!("hi");
+                                let _ = writeln!(writer, "Hello");
+                                let _ = writer.flush();
                             }
                         }
                     }
@@ -254,7 +251,8 @@ fn main() {
                         match idx {
                             Some((x, y)) => {
                                 client_buffers[x].remove(y);
-                                info!("closed");
+                                let _ = writeln!(writer, "Closed");
+                                let _ = writer.flush();
                             }
                             None => (),
                         }
