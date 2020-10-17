@@ -202,7 +202,10 @@ fn main() {
                             Some((x, y)) => {
                                 let decoded = client_buffers[x][y].decode(buffer);
                                 match decoded {
-                                    Ok(dec) => client_buffers[x][y].next_buffers.push_back(dec),
+                                    Ok(dec) => match client_buffers[x][y].current_buffer {
+                                        Some(_) => client_buffers[x][y].next_buffers.push_back(dec),
+                                        None => client_buffers[x][y].current_buffer = Some(dec),
+                                    },
                                     _ => (),
                                 }
                             }
