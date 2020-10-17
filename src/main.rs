@@ -49,8 +49,8 @@ impl ClientBuffer {
     fn process(&mut self) -> f32 {
         let mut output = 0.0;
         if !self.init_wait {
-            output = self.current_buffer.map_or(0.0, |b| b[self.idx]);
-            let length = self.current_buffer.map_or(0, |b| b.len());
+            output = self.current_buffer.as_ref().map_or(0.0, |b| b[self.idx]);
+            let length = self.current_buffer.as_ref().map_or(0, |b| b.len());
             if self.idx >= length - 1 {
                 self.current_buffer = self.next_buffers.pop_front();
                 self.idx = 0;
