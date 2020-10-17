@@ -54,9 +54,11 @@ impl ClientBuffer {
             if self.idx >= length - 1 {
                 self.current_buffer = self.next_buffers.pop_front();
                 self.idx = 0;
-            } else {
+            } else if length > 0 {
                 self.idx = (self.idx + 1) % length
-            };
+            } else {
+                self.idx = 0;
+            }
         } else if self.next_buffers.len() > 4 {
             self.init_wait = false;
         }
@@ -185,7 +187,8 @@ fn main() {
         move |_: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
             let mut log_file = match OpenOptions::new()
                 .read(true)
-                .write(true)
+                .append(true)
+                .truncate(true)
                 .create(true)
                 .open("log.log")
             {
