@@ -185,13 +185,7 @@ fn main() {
 
     let process = jack::ClosureProcessHandler::new(
         move |_: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
-            let mut log_file = match OpenOptions::new()
-                .read(true)
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open("log.log")
-            {
+            let mut log_file = match OpenOptions::new().write(true).create(true).open("log.log") {
                 Err(why) => panic!("couldn't create {}: {}", "log.log", why),
                 Ok(file) => file,
             };
