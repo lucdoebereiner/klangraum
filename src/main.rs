@@ -15,7 +15,7 @@ use std::thread::spawn;
 use tungstenite::{accept, Message};
 
 struct ClientBuffer {
-    current_buffer: Vec<f32>,
+    current_buffer: Option<Vec<f32>>,
     next_buffers: VecDeque<Vec<f32>>,
     idx: usize,
     init_wait: bool,
@@ -49,13 +49,10 @@ impl ClientBuffer {
     fn process(&mut self) -> f32 {
         let mut output = 0.0;
         if !self.init_wait {
-            output = self.current_buffer[self.idx];
-            let length = self.current_buffer.len();
+            output = self.current_buffer.map_or(0.0, |b| b[self.idx]);
+            let length = self.current_buffer.map_or(0, |b| b.len());
             if self.idx >= length - 1 {
-                match self.next_buffers.pop_front() {
-                    Some(next) => self.current_buffer = next,
-                    None => (),
-                };
+                self.current_buffer = self.next_buffers.pop_front();
                 self.idx = 0;
             } else {
                 self.idx = (self.idx + 1) % length
@@ -215,7 +212,7 @@ fn main() {
                             None => {
                                 let decoder = Decoder::new(Mp3Buffer { data: vec![] });
                                 let mut client_buffer = ClientBuffer {
-                                    current_buffer: vec![],
+                                    current_buffer: None,
                                     next_buffers: VecDeque::with_capacity(10),
                                     idx: 0,
                                     init_wait: true,
@@ -226,7 +223,7 @@ fn main() {
                                 let decoded = client_buffer.decode(buffer);
                                 match decoded {
                                     Ok(dec) => {
-                                        client_buffer.current_buffer = dec;
+                                        client_buffer.current_buffer = Some(dec);
                                         let index = next_free_index(&client_buffers);
                                         client_buffers[index].push(client_buffer);
                                         sender_client_msg
