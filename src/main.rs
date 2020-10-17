@@ -187,7 +187,7 @@ fn main() {
         move |_: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
             let mut log_file = match OpenOptions::new()
                 .read(true)
-                .append(true)
+                .write(true)
                 .truncate(true)
                 .create(true)
                 .open("log.log")
