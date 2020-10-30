@@ -1,6 +1,6 @@
-use bus::Bus;
 use crossbeam_channel::bounded;
 use crossbeam_channel::{Receiver, Sender};
+use tokio::sync::broadcast;
 // use flexi_logger::{opt_format, Logger};
 // use log::*;
 use minimp3::Decoder;
@@ -83,7 +83,7 @@ fn handle_client<S: Read + Write>(
     //    stream: TlsStream<TcpStream>,
     connection_id: u32,
     tx1: Sender<ClientUpdate>,
-    mut receiver: bus::BusReader<MsgToClient>, //Receiver<MsgToClient>,
+    mut receiver: tokio::sync::broadcast::Receiver<MsgToClient>, //Receiver<MsgToClient>,
 ) -> () {
     while let Ok(msg) = websocket.read_message() {
         match msg {
@@ -159,6 +159,8 @@ fn number_of_listeners(buffers: &[Vec<ClientBuffer>]) -> usize {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+    let n_outs = args[2].parse::<usize>().unwrap();
+
     println!("Starting server on {}", args[1]);
 
     let (tx, rx): (Sender<ClientUpdate>, Receiver<ClientUpdate>) = bounded(100);
@@ -166,12 +168,18 @@ fn main() {
     // let (sender_client_msg, receiver_client_msg): (Sender<MsgToClient>, Receiver<MsgToClient>) =
     //     bounded(100);
 
-    let mut sender_client_msg = Bus::new(100);
+    let (sender_client_msg, _) = broadcast::channel(100);
+
+    //    let mut sender_client_msg = Bus::new(100);
+
+    // let mut client_msg_receivers: Vec<bus::BusReader<MsgToClient>> =
+    //     Vec::with_capacity(n_outs * 100);
+    // for i in 0..(n_outs * 100) {
+    //     client_msg_receivers[i] = sender_client_msg.add_rx();
+    // }
 
     let (client, _status) =
         jack::Client::new("klangraum_input", jack::ClientOptions::NO_START_SERVER).unwrap();
-
-    let n_outs = args[2].parse::<usize>().unwrap();
 
     let mut client_buffers: Vec<Vec<ClientBuffer>> = Vec::with_capacity(n_outs);
     for _i in 0..n_outs {
@@ -188,6 +196,8 @@ fn main() {
                 .unwrap(),
         );
     }
+
+    let sender_client_msg_cloned = sender_client_msg.clone();
 
     let process = jack::ClosureProcessHandler::new(
         move |_: &jack::Client, ps: &jack::ProcessScope| -> jack::Control {
@@ -232,11 +242,12 @@ fn main() {
                                         client_buffer.current_buffer = Some(dec);
                                         let index = next_free_index(&client_buffers);
                                         client_buffers[index].push(client_buffer);
-                                        sender_client_msg.broadcast(MsgToClient {
-                                            id: connection_id,
-                                            jack_input: index,
-                                        })
-                                        //.unwrap();
+                                        sender_client_msg_cloned
+                                            .send(MsgToClient {
+                                                id: connection_id,
+                                                jack_input: index,
+                                            })
+                                            .unwrap();
                                     }
                                     _ => (),
                                 }
@@ -298,13 +309,16 @@ fn main() {
 
     let server = TcpListener::bind(args[1].clone()).unwrap();
 
-    let mut id_counter = 0;
+    let mut id_counter: u32 = 0;
     for stream in server.incoming() {
         match stream {
             Ok(stream) => {
                 let acceptor = acceptor.clone();
                 let tx1 = tx.clone();
-                let receiver = sender_client_msg.add_rx(); //receiver_client_msg.clone();
+                let receiver = sender_client_msg.subscribe();
+
+                // let mut receiver =
+                //     &mut client_msg_receivers[(id_counter as usize) % (n_outs * 100)]; //receiver_client_msg.clone();
                 spawn(move || {
                     match acceptor {
                         Some(acceptor) => {
