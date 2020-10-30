@@ -1,3 +1,4 @@
+use bus::Bus;
 use crossbeam_channel::bounded;
 use crossbeam_channel::{Receiver, Sender};
 // use flexi_logger::{opt_format, Logger};
@@ -81,7 +82,7 @@ fn handle_client<S: Read + Write>(
     //    stream: TlsStream<TcpStream>,
     connection_id: u32,
     tx1: Sender<ClientUpdate>,
-    receiver: Receiver<MsgToClient>,
+    receiver: bus::BusReader<MsgToClient>, //Receiver<MsgToClient>,
 ) -> () {
     while let Ok(msg) = websocket.read_message() {
         match msg {
@@ -159,8 +160,10 @@ fn main() {
 
     let (tx, rx): (Sender<ClientUpdate>, Receiver<ClientUpdate>) = bounded(100);
 
-    let (sender_client_msg, receiver_client_msg): (Sender<MsgToClient>, Receiver<MsgToClient>) =
-        bounded(100);
+    // let (sender_client_msg, receiver_client_msg): (Sender<MsgToClient>, Receiver<MsgToClient>) =
+    //     bounded(100);
+
+    let mut sender_client_msg = Bus::new(100);
 
     let (client, _status) =
         jack::Client::new("klangraum_input", jack::ClientOptions::NO_START_SERVER).unwrap();
@@ -226,12 +229,11 @@ fn main() {
                                         client_buffer.current_buffer = Some(dec);
                                         let index = next_free_index(&client_buffers);
                                         client_buffers[index].push(client_buffer);
-                                        sender_client_msg
-                                            .send(MsgToClient {
-                                                id: connection_id,
-                                                jack_input: index,
-                                            })
-                                            .unwrap();
+                                        sender_client_msg.broadcast(MsgToClient {
+                                            id: connection_id,
+                                            jack_input: index,
+                                        })
+                                        //.unwrap();
                                     }
                                     _ => (),
                                 }
@@ -299,7 +301,7 @@ fn main() {
             Ok(stream) => {
                 let acceptor = acceptor.clone();
                 let tx1 = tx.clone();
-                let receiver = receiver_client_msg.clone();
+                let receiver = sender_client_msg.add_rx(); //receiver_client_msg.clone();
                 spawn(move || {
                     match acceptor {
                         Some(acceptor) => {
