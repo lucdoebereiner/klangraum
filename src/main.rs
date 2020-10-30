@@ -72,6 +72,7 @@ enum ClientUpdate {
     Closed { connection_id: u32 },
 }
 
+#[derive(Debug, Clone, Copy)]
 struct MsgToClient {
     id: u32,
     jack_input: usize,
@@ -82,7 +83,7 @@ fn handle_client<S: Read + Write>(
     //    stream: TlsStream<TcpStream>,
     connection_id: u32,
     tx1: Sender<ClientUpdate>,
-    receiver: bus::BusReader<MsgToClient>, //Receiver<MsgToClient>,
+    mut receiver: bus::BusReader<MsgToClient>, //Receiver<MsgToClient>,
 ) -> () {
     while let Ok(msg) = websocket.read_message() {
         match msg {
@@ -103,12 +104,14 @@ fn handle_client<S: Read + Write>(
             _ => (),
         }
         if let Ok(to_client) = receiver.try_recv() {
-            websocket
-                .write_message(Message::Text(format!(
-                    "{{ \"id\": {}, \"channel\": {} }}",
-                    to_client.id, to_client.jack_input
-                )))
-                .unwrap();
+            if to_client.id == connection_id {
+                websocket
+                    .write_message(Message::Text(format!(
+                        "{{ \"id\": {}, \"channel\": {} }}",
+                        to_client.id, to_client.jack_input
+                    )))
+                    .unwrap();
+            }
         }
     }
 }
